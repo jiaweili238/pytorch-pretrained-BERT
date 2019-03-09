@@ -90,6 +90,10 @@ def get_args():
                         type=str,
                         default='./save/',
                         help='Base directory for saving information.')
+    parser.add_argument('--eval_steps',
+                        type=int,
+                        default=50000,
+                        help='Number of steps between successive evaluations.')
 
     args = parser.parse_args()
 
