@@ -31,6 +31,7 @@ from tqdm import tqdm, trange
 from utils import read_squad_examples
 from utils import convert_examples_to_features
 from utils import write_predictions
+from tensorboardX import SummaryWriter
 
 import numpy as np
 import torch
@@ -42,11 +43,12 @@ from pytorch_pretrained_bert.modeling import BertForQuestionAnswering
 from pytorch_pretrained_bert.optimization import BertAdam, warmup_linear
 from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE
 
+"""
 logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                     datefmt = '%m/%d/%Y %H:%M:%S',
                     level = logging.INFO)
 logger = logging.getLogger(__name__)
-
+"""
 
 
 def main():
@@ -123,7 +125,21 @@ def main():
     parser.add_argument('--null_score_diff_threshold',
                         type=float, default=0.0,
                         help="If null_score - best_non_null is greater than the threshold predict null.")
+    parser.add_argument('--name',
+                        '-n',
+                        type=str,
+                        required=True,
+                        help='Name to identify training or test run.')
+    parser.add_argument('--save_dir',
+                        type=str,
+                        default='./save/',
+                        help='Base directory for saving information.')
     args = parser.parse_args()
+
+
+    args.save_dir = util.get_save_dir(args.save_dir, args.name, training=True)
+    logger = util.get_logger(args.save_dir, args.name)
+    tbx = SummaryWriter(args.save_dir)
 
     if args.local_rank == -1 or args.no_cuda:
         device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
@@ -143,6 +159,7 @@ def main():
 
     args.train_batch_size = args.train_batch_size // args.gradient_accumulation_steps
 
+    tbx = SummaryWriter(args.save_dir)
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -273,6 +290,7 @@ def main():
                     batch = tuple(t.to(device) for t in batch) # multi-gpu does scattering it-self
                 input_ids, input_mask, segment_ids, start_positions, end_positions = batch
                 loss = model(input_ids, segment_ids, input_mask, start_positions, end_positions)
+                loss_val = loss.item()
                 if n_gpu > 1:
                     loss = loss.mean() # mean() to average on multi-gpu.
                 if args.gradient_accumulation_steps > 1:
@@ -292,6 +310,11 @@ def main():
                     optimizer.step()
                     optimizer.zero_grad()
                     global_step += 1
+                # add to tensorboard 
+                tbx.add_scalar('train/NLL', loss_val, step)
+                tbx.add_scalar('train/LR',
+                               param_group['lr'],
+                               step)
 
     # Save a trained model
     model_to_save = model.module if hasattr(model, 'module') else model  # Only save the model it-self
