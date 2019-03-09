@@ -32,6 +32,8 @@ import utils
 from utils import read_squad_examples
 from utils import convert_examples_to_features
 from utils import write_predictions
+from utils import RawResult
+from utils import eval_results
 from tensorboardX import SummaryWriter
 from args import get_args
 import numpy as np
@@ -221,7 +223,6 @@ def main(args):
                 if n_gpu == 1:
                     batch = tuple(t.to(device) for t in batch) # multi-gpu does scattering it-self
                 input_ids, input_mask, segment_ids, start_positions, end_positions = batch
-                batch_size = input_ids.size[0]
                 loss = model(input_ids, segment_ids, input_mask, start_positions, end_positions)
                 if n_gpu > 1:
                     loss = loss.mean() # mean() to average on multi-gpu.
@@ -249,14 +250,14 @@ def main(args):
                                optimizer.param_groups[0]['lr'],
                                step)
 
-                steps_till_eval -= batch_size
+                steps_till_eval -= args.train_batch_size
                 if steps_till_eval <= 0:
                     steps_till_eval = args.eval_steps
 
                     # Evaluate and save checkpoint
                     logger.info('Evaluating at step {}...'.format(step))
                     # ema.assign(model)
-                    results  = evaluate(model, eval_examples, eval_features, device,args)
+                    results  = evaluate(model, eval_examples, eval_features, device,args, logger)
                     # saver.save(step, model, results[args.metric_name], device)
                     # ema.resume(model)
 
@@ -294,7 +295,7 @@ def main(args):
 
     """
     if args.do_predict and (args.local_rank == -1 or torch.distributed.get_rank() == 0):
-        
+
         logger.info("***** Running predictions *****")
         logger.info("  Num orig examples = %d", len(eval_examples))
         logger.info("  Num split examples = %d", len(eval_features))
@@ -328,7 +329,7 @@ def main(args):
                 all_results.append(RawResult(unique_id=unique_id,
                                              start_logits=start_logits,
                                              end_logits=end_logits))
-        
+
         results  = evaluate(model, eval_examples, eval_features, device,args)
         output_prediction_file = os.path.join(args.output_dir, "predictions.json")
         output_nbest_file = os.path.join(args.output_dir, "nbest_predictions.json")
@@ -339,7 +340,7 @@ def main(args):
                           output_nbest_file, output_null_log_odds_file, args.verbose_logging,
                           args.version_2_with_negative, args.null_score_diff_threshold)
         """
-def evaluate(model, eval_examples, eval_features, device, args):
+def evaluate(model, eval_examples, eval_features, device, args, logger):
     logger.info("***** Running predictions *****")
     logger.info("  Num orig examples = %d", len(eval_examples))
     logger.info("  Num split examples = %d", len(eval_features))
@@ -375,12 +376,12 @@ def evaluate(model, eval_examples, eval_features, device, args):
                                          end_logits=end_logits))
     model.train()
 
-    results = eval_results(eval_examples, eval_features, all_results,
+    results = eval_results(eval_examples, eval_features, all_results, args.dev_eval_file,
         args.n_best_size, args.max_answer_length,
         args.do_lower_case, output_prediction_file,
         output_nbest_file, output_null_log_odds_file, args.verbose_logging,
         args.version_2_with_negative, args.null_score_diff_threshold)
-    
+
     results_list = [('F1', results['F1']),
                     ('EM', results['EM'])]
     if use_squad_v2:

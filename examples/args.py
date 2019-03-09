@@ -22,6 +22,8 @@ def get_args():
     parser.add_argument("--train_file", default=None, type=str, help="SQuAD json for training. E.g., train-v1.1.json")
     parser.add_argument("--predict_file", default=None, type=str,
                         help="SQuAD json for predictions. E.g., dev-v1.1.json or test-v1.1.json")
+    parser.add_argument("--dev_eval_file", default=None, type=str,
+                        help="SQuAD json for predictions. E.g., dev-v1.1.json or test-v1.1.json")
     parser.add_argument("--max_seq_length", default=384, type=int,
                         help="The maximum total input sequence length after WordPiece tokenization. Sequences "
                              "longer than this will be truncated, and sequences shorter than this will be padded.")

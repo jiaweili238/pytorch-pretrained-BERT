@@ -1,4 +1,4 @@
-export SQUAD_DIR=/data/home/jiawei/pytorch-pretrained-BERT/project/pytorch-pretrained-BERT/squad
+export SQUAD_DIR=/data/home/jiawei/project/pytorch-pretrained-BERT/examples/squad
 
 python train.py \
   --bert_model bert-base-uncased \
@@ -7,6 +7,8 @@ python train.py \
   --do_lower_case \
   --train_file $SQUAD_DIR/data/train-v2.0.json \
   --predict_file $SQUAD_DIR/data/dev-v2.0.json \
+  --dev_eval_file $SQUAD_DIR/data/dev_eval.json \
+  --eval_steps 20 \
   --train_batch_size 36 \
   --learning_rate 3e-5 \
   --num_train_epochs 2.0 \

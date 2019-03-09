@@ -603,7 +603,7 @@ def write_predictions(all_examples, all_features, all_results, n_best_size,
             writer.write(json.dumps(scores_diff_json, indent=4) + "\n")
 
 
-def eval_results(all_examples, all_features, all_results, n_best_size,
+def eval_results(all_examples, all_features, all_results, eval_gold_file ,n_best_size,
                       max_answer_length, do_lower_case, output_prediction_file,
                       output_nbest_file, output_null_log_odds_file, verbose_logging,
                       version_2_with_negative, null_score_diff_threshold):
@@ -779,7 +779,7 @@ def eval_results(all_examples, all_features, all_results, n_best_size,
 
     with open(eval_gold_file, "r") as fh:
         starter_gold_dict = json_load(fh)
-    
+
 
     bert_gold_dict = {}
     gold_dict = {}
@@ -987,6 +987,8 @@ def get_logger(log_dir, name):
     logger.addHandler(console_handler)
 
     return logger
+
+RawResult = collections.namedtuple("RawResult",["unique_id", "start_logits", "end_logits"])
 
 def get_save_dir(base_dir, name, training, id_max=100):
     """Get a unique save directory by appending the smallest positive integer
