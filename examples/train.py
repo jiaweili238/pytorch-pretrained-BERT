@@ -52,7 +52,8 @@ logger = logging.getLogger(__name__)
 """
 
 
-def main():
+def main(args):
+    """
     parser = argparse.ArgumentParser()
 
     ## Required parameters
@@ -136,6 +137,8 @@ def main():
                         default='./save/',
                         help='Base directory for saving information.')
     args = parser.parse_args()
+
+    """
 
 
     args.save_dir = utils.get_save_dir(args.save_dir, args.name, training=True)
@@ -385,4 +388,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    #main()
+    main(get_args())
