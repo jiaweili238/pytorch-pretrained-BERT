@@ -28,6 +28,7 @@ import os
 import random
 import pickle
 from tqdm import tqdm, trange
+import utils
 from utils import read_squad_examples
 from utils import convert_examples_to_features
 from utils import write_predictions
@@ -290,7 +291,6 @@ def main():
                     batch = tuple(t.to(device) for t in batch) # multi-gpu does scattering it-self
                 input_ids, input_mask, segment_ids, start_positions, end_positions = batch
                 loss = model(input_ids, segment_ids, input_mask, start_positions, end_positions)
-                loss_val = loss.item()
                 if n_gpu > 1:
                     loss = loss.mean() # mean() to average on multi-gpu.
                 if args.gradient_accumulation_steps > 1:
@@ -310,10 +310,11 @@ def main():
                     optimizer.step()
                     optimizer.zero_grad()
                     global_step += 1
-                # add to tensorboard 
+                # add to tensorboard
+                loss_val = loss.item()
                 tbx.add_scalar('train/NLL', loss_val, step)
                 tbx.add_scalar('train/LR',
-                               param_group['lr'],
+                               optimizer.param_groups[0]['lr'],
                                step)
 
     # Save a trained model
