@@ -137,8 +137,8 @@ def main():
     args = parser.parse_args()
 
 
-    args.save_dir = util.get_save_dir(args.save_dir, args.name, training=True)
-    logger = util.get_logger(args.save_dir, args.name)
+    args.save_dir = utils.get_save_dir(args.save_dir, args.name, training=True)
+    logger = utils.get_logger(args.save_dir, args.name)
     tbx = SummaryWriter(args.save_dir)
 
     if args.local_rank == -1 or args.no_cuda:
