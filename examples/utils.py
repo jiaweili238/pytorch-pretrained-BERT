@@ -164,7 +164,7 @@ def read_squad_examples(input_file, is_training, version_2_with_negative):
                         orig_answer_text = ""
 
                 # example is the original for a certain example
-                # containning, qas_id, question_text, 
+                # containning, qas_id, question_text,
                 example = SquadExample(
                     qas_id=qas_id,
                     question_text=question_text,
