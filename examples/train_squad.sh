@@ -8,7 +8,7 @@ python train.py \
   --train_file $SQUAD_DIR/data/train-v2.0.json \
   --predict_file $SQUAD_DIR/data/dev-v2.0.json \
   --dev_eval_file $SQUAD_DIR/data/dev_eval.json \
-  --eval_steps 20 \
+  --eval_steps 5000 \
   --train_batch_size 36 \
   --learning_rate 3e-5 \
   --num_train_epochs 2.0 \

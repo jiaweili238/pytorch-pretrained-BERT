@@ -378,8 +378,7 @@ def evaluate(model, eval_examples, eval_features, device, args, logger):
 
     results = eval_results(eval_examples, eval_features, all_results, args.dev_eval_file,
         args.n_best_size, args.max_answer_length,
-        args.do_lower_case, output_prediction_file,
-        output_nbest_file, output_null_log_odds_file, args.verbose_logging,
+        args.do_lower_case, args.verbose_logging,
         args.version_2_with_negative, args.null_score_diff_threshold)
 
     results_list = [('F1', results['F1']),

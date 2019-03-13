@@ -604,8 +604,7 @@ def write_predictions(all_examples, all_features, all_results, n_best_size,
 
 
 def eval_results(all_examples, all_features, all_results, eval_gold_file ,n_best_size,
-                      max_answer_length, do_lower_case, output_prediction_file,
-                      output_nbest_file, output_null_log_odds_file, verbose_logging,
+                      max_answer_length, do_lower_case, verbose_logging,
                       version_2_with_negative, null_score_diff_threshold):
     """Write final predictions to the json file and log-odds of null if needed."""
     logger.info("Writing predictions to: %s" % (output_prediction_file))
@@ -797,7 +796,7 @@ def eval_results(all_examples, all_features, all_results, eval_gold_file ,n_best
             gold_dict[str(counter)] = bert_gold_dict[key]
             counter += 1
 
-    results = util.eval_dicts(gold_dict, pred_dict, no_answer = True)
+    results = eval_dicts(gold_dict, pred_dict, no_answer = True)
 
     return results
 
