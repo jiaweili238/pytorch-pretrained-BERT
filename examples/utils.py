@@ -1,3 +1,16 @@
+import logging
+import os
+import queue
+import re
+import shutil
+import string
+import torch
+import torch.nn.functional as F
+import torch.utils.data as data
+import tqdm
+import numpy as np
+import ujson as json
+
 import argparse
 import collections
 import logging
@@ -7,6 +20,8 @@ import os
 import random
 import pickle
 from tqdm import tqdm, trange
+from ujson import load as json_load
+from collections import Counter
 
 import numpy as np
 import torch
@@ -607,8 +622,6 @@ def eval_results(all_examples, all_features, all_results, eval_gold_file ,n_best
                       max_answer_length, do_lower_case, verbose_logging,
                       version_2_with_negative, null_score_diff_threshold):
     """Write final predictions to the json file and log-odds of null if needed."""
-    logger.info("Writing predictions to: %s" % (output_prediction_file))
-    logger.info("Writing nbest to: %s" % (output_nbest_file))
 
     example_index_to_features = collections.defaultdict(list)
     for feature in all_features:
@@ -789,6 +802,7 @@ def eval_results(all_examples, all_features, all_results, eval_gold_file ,n_best
         bert_gold_dict[value['uuid']] = value
 
     # Filter out bert_pred_file
+    bert_pred_file = all_predictions
     counter = 1
     for key, value in bert_pred_file.items():
         if key in bert_gold_dict.keys():

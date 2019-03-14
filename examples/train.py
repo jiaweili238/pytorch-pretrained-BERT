@@ -19,6 +19,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+from collections import OrderedDict
 import argparse
 import collections
 import logging
@@ -245,10 +246,10 @@ def main(args):
                     global_step += 1
                 # add to tensorboard
                 loss_val = loss.item()
-                tbx.add_scalar('train/NLL', loss_val, step)
+                tbx.add_scalar('train/NLL', loss_val, global_step)
                 tbx.add_scalar('train/LR',
                                optimizer.param_groups[0]['lr'],
-                               step)
+                               global_step)
 
                 steps_till_eval -= args.train_batch_size
                 if steps_till_eval <= 0:
@@ -257,7 +258,7 @@ def main(args):
                     # Evaluate and save checkpoint
                     logger.info('Evaluating at step {}...'.format(step))
                     # ema.assign(model)
-                    results  = evaluate(model, eval_examples, eval_features, device,args, logger)
+                    results  = evaluate(model, eval_examples, eval_features, device,args, logger, args.version_2_with_negative)
                     # saver.save(step, model, results[args.metric_name], device)
                     # ema.resume(model)
 
@@ -269,7 +270,7 @@ def main(args):
                     # Log to TensorBoard
                     logger.info('Visualizing in TensorBoard...')
                     for k, v in results.items():
-                        tbx.add_scalar('dev/{}'.format(k), v, step)
+                        tbx.add_scalar('dev/{}'.format(k), v, global_step)
                     """
                     util.visualize(tbx,
                                    pred_dict=pred_dict,
@@ -340,7 +341,7 @@ def main(args):
                           output_nbest_file, output_null_log_odds_file, args.verbose_logging,
                           args.version_2_with_negative, args.null_score_diff_threshold)
         """
-def evaluate(model, eval_examples, eval_features, device, args, logger):
+def evaluate(model, eval_examples, eval_features, device, args, logger,use_squad_v2 ):
     logger.info("***** Running predictions *****")
     logger.info("  Num orig examples = %d", len(eval_examples))
     logger.info("  Num split examples = %d", len(eval_features))
