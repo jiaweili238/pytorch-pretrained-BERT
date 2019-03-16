@@ -109,7 +109,7 @@ def main(args):
     num_train_optimization_steps = None
     if args.do_train:
         train_examples = read_squad_examples(
-            input_file=args.train_file, is_training=True, version_2_with_negative=args.version_2_with_negative)
+            input_file=args.train_file, is_training=True, version_2_with_negative=args.version_2_with_negative, args.train_ling_features_file)
         num_train_optimization_steps = int(
             len(train_examples) / args.train_batch_size / args.gradient_accumulation_steps) * args.num_train_epochs
         if args.local_rank != -1:
@@ -190,7 +190,7 @@ def main(args):
 
     # load eval features
     eval_examples = read_squad_examples(
-            input_file=args.predict_file, is_training=False, version_2_with_negative=args.version_2_with_negative)
+            input_file=args.predict_file, is_training=False, version_2_with_negative=args.version_2_with_negative, args.eval_ling_features_file)
     eval_features = convert_examples_to_features(
             examples=eval_examples,
             tokenizer=tokenizer,
@@ -209,7 +209,8 @@ def main(args):
         all_segment_ids = torch.tensor([f.segment_ids for f in train_features], dtype=torch.long)
         all_start_positions = torch.tensor([f.start_position for f in train_features], dtype=torch.long)
         all_end_positions = torch.tensor([f.end_position for f in train_features], dtype=torch.long)
-        train_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids,
+        all_ling_features = torch.tensor([f.ling_features for f in train_features], dtype=torch.long)
+        train_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_ling_features
                                    all_start_positions, all_end_positions)
         steps_till_eval = args.eval_steps
         if args.local_rank == -1:
@@ -223,8 +224,8 @@ def main(args):
             for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
                 if n_gpu == 1:
                     batch = tuple(t.to(device) for t in batch) # multi-gpu does scattering it-self
-                input_ids, input_mask, segment_ids, start_positions, end_positions = batch
-                loss = model(input_ids, segment_ids, input_mask, start_positions, end_positions)
+                input_ids, input_mask, segment_ids, ling_features, start_positions, end_positions = batch
+                loss = model(input_ids, segment_ids, input_mask, ling_features, start_positions, end_positions)
                 if n_gpu > 1:
                     loss = loss.mean() # mean() to average on multi-gpu.
                 if args.gradient_accumulation_steps > 1:

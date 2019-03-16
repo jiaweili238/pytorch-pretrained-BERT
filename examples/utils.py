@@ -52,7 +52,8 @@ class SquadExample(object):
                  orig_answer_text=None,
                  start_position=None,
                  end_position=None,
-                 is_impossible=None):
+                 is_impossible=None,
+                 ling_features=None):
         self.qas_id = qas_id
         self.question_text = question_text
         self.doc_tokens = doc_tokens
@@ -60,6 +61,7 @@ class SquadExample(object):
         self.start_position = start_position
         self.end_position = end_position
         self.is_impossible = is_impossible
+        self.ling_features = ling_features
 
     def __str__(self):
         return self.__repr__()
@@ -94,7 +96,8 @@ class InputFeatures(object):
                  segment_ids,
                  start_position=None,
                  end_position=None,
-                 is_impossible=None):
+                 is_impossible=None,
+                 ling_features=None):
         self.unique_id = unique_id
         self.example_index = example_index
         self.doc_span_index = doc_span_index
@@ -107,10 +110,14 @@ class InputFeatures(object):
         self.start_position = start_position
         self.end_position = end_position
         self.is_impossible = is_impossible
+        self.ling_features = ling_features
 
 
-def read_squad_examples(input_file, is_training, version_2_with_negative):
+def read_squad_examples(input_file, is_training, version_2_with_negative, ling_features_file):
     """Read a SQuAD json file into a list of SquadExample."""
+    
+    ling_features_dict = np.load(ling_features_file)[()]
+    
     with open(input_file, "r", encoding='utf-8') as reader:
         input_data = json.load(reader)["data"]
 
@@ -187,7 +194,8 @@ def read_squad_examples(input_file, is_training, version_2_with_negative):
                     orig_answer_text=orig_answer_text,
                     start_position=start_position,
                     end_position=end_position,
-                    is_impossible=is_impossible)
+                    is_impossible=is_impossible,
+                    ling_features=ling_features_dict[qas_id])
                 examples.append(example)
     return examples
 
@@ -349,7 +357,8 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
                     segment_ids=segment_ids,
                     start_position=start_position,
                     end_position=end_position,
-                    is_impossible=example.is_impossible))
+                    is_impossible=example.is_impossible,
+                    ling_features=example.ling_features))
             unique_id += 1
 
     return features
