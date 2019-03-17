@@ -206,6 +206,18 @@ def main(args):
             doc_stride=args.doc_stride,
             max_query_length=args.max_query_length,
             is_training=False)
+
+    test_examples = read_squad_examples(
+            input_file=args.test_file, is_training=False, version_2_with_negative=args.version_2_with_negative, total_dictionary=total_dict)
+    test_features = convert_examples_to_features(
+            examples=test_examples,
+            tokenizer=tokenizer,
+            max_seq_length=args.max_seq_length,
+            doc_stride=args.doc_stride,
+            max_query_length=args.max_query_length,
+            is_training=False)
+
+
     if args.do_train:
         logger.info("***** Running training *****")
         logger.info("  Num orig examples = %d", len(train_examples))
@@ -271,7 +283,7 @@ def main(args):
                     # Evaluate and save checkpoint
                     logger.info('Evaluating at step {}...'.format(step))
                     # ema.assign(model)
-                    results  = evaluate(model, eval_examples, eval_features, device,args, logger, args.version_2_with_negative)
+                    results, _  = evaluate(model, eval_examples, eval_features, device,args, logger, args.version_2_with_negative, args.dev_eval_file )
                     # saver.save(step, model, results[args.metric_name], device)
                     # ema.resume(model)
 
@@ -300,6 +312,7 @@ def main(args):
                         #model.to(device) 
 
     # Save a trained model
+    """
     model_to_save = model.module if hasattr(model, 'module') else model  # Only save the model it-self
     output_model_file = os.path.join(args.output_dir, "pytorch_model.bin")
     if args.do_train:
@@ -311,10 +324,44 @@ def main(args):
         model = BertForQuestionAnsweringLing.from_pretrained(args.bert_model)
 
     model.to(device)
-
     """
-    if args.do_predict and (args.local_rank == -1 or torch.distributed.get_rank() == 0):
 
+    
+    # load the best trained model and eval on the eval set and test set
+    best_model_file = os.path.join(args.output_dir, "pytorch_model_best.bin")
+    model_state_dict = torch.load(best_model_file)
+    model = BertForQuestionAnsweringLing.from_pretrained(args.bert_model, state_dict=model_state_dict)
+    model.to(device)
+
+    
+    if args.do_predict and (args.local_rank == -1 or torch.distributed.get_rank() == 0):
+        logger.info('Evaluating at the best model')
+        results, all_results  = evaluate(model, eval_examples, eval_features, device,args, logger, args.version_2_with_negative, args.dev_eval_file)
+
+        logger.info('Write the best eval results')
+        output_prediction_file = os.path.join(args.output_dir, "predictions.json")
+        output_nbest_file = os.path.join(args.output_dir, "nbest_predictions.json")
+        output_null_log_odds_file = os.path.join(args.output_dir, "null_odds.json")
+        write_predictions(eval_examples, eval_features, all_results,
+                          args.n_best_size, args.max_answer_length,
+                          args.do_lower_case, output_prediction_file,
+                          output_nbest_file, output_null_log_odds_file, args.verbose_logging,
+                          args.version_2_with_negative, args.null_score_diff_threshold)
+
+
+        logger.info('Test set at the best model')
+        results, all_results  = evaluate(model, test_examples, test_features, device,args, logger, args.version_2_with_negative, args.test_eval_file)
+
+        logger.info('Write the best test set results')
+        output_prediction_file = os.path.join(args.output_dir, "predictions_test.json")
+        output_nbest_file = os.path.join(args.output_dir, "nbest_predictions_test.json")
+        output_null_log_odds_file = os.path.join(args.output_dir, "null_odds_test.json")
+        write_predictions(eval_examples, eval_features, all_results,
+                          args.n_best_size, args.max_answer_length,
+                          args.do_lower_case, output_prediction_file,
+                          output_nbest_file, output_null_log_odds_file, args.verbose_logging,
+                          args.version_2_with_negative, args.null_score_diff_threshold)
+        """
         logger.info("***** Running predictions *****")
         logger.info("  Num orig examples = %d", len(eval_examples))
         logger.info("  Num split examples = %d", len(eval_features))
@@ -324,6 +371,7 @@ def main(args):
         all_input_mask = torch.tensor([f.input_mask for f in eval_features], dtype=torch.long)
         all_segment_ids = torch.tensor([f.segment_ids for f in eval_features], dtype=torch.long)
         all_example_index = torch.arange(all_input_ids.size(0), dtype=torch.long)
+        all_ling_features = torch.tensor([f.ling_features for f in eval_features], dtype=torch.float)
         eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_example_index)
         # Run prediction for full data
         eval_sampler = SequentialSampler(eval_data)
@@ -358,8 +406,11 @@ def main(args):
                           args.do_lower_case, output_prediction_file,
                           output_nbest_file, output_null_log_odds_file, args.verbose_logging,
                           args.version_2_with_negative, args.null_score_diff_threshold)
-        """
-def evaluate(model, eval_examples, eval_features, device, args, logger,use_squad_v2 ):
+
+
+            """
+        
+def evaluate(model, eval_examples, eval_features, device, args, logger,use_squad_v2, eval_file ):
     logger.info("***** Running predictions *****")
     logger.info("  Num orig examples = %d", len(eval_examples))
     logger.info("  Num split examples = %d", len(eval_features))
@@ -397,7 +448,7 @@ def evaluate(model, eval_examples, eval_features, device, args, logger,use_squad
                                          end_logits=end_logits))
     model.train()
 
-    results = eval_results(eval_examples, eval_features, all_results, args.dev_eval_file,
+    results = eval_results(eval_examples, eval_features, all_results, eval_file,
         args.n_best_size, args.max_answer_length,
         args.do_lower_case, args.verbose_logging,
         args.version_2_with_negative, args.null_score_diff_threshold)
@@ -408,7 +459,59 @@ def evaluate(model, eval_examples, eval_features, device, args, logger,use_squad
         results_list.append(('AvNA', results['AvNA']))
     results = OrderedDict(results_list)
 
-    return results
+    return results, all_results
+
+
+def test(model, eval_examples, eval_features, device, args, logger,use_squad_v2 ):
+    logger.info("***** Running predictions for test set *****")
+    logger.info("  Num orig examples = %d", len(eval_examples))
+    logger.info("  Num split examples = %d", len(eval_features))
+    logger.info("  Batch size = %d", args.predict_batch_size)
+
+    all_input_ids = torch.tensor([f.input_ids for f in eval_features], dtype=torch.long)
+    all_input_mask = torch.tensor([f.input_mask for f in eval_features], dtype=torch.long)
+    all_segment_ids = torch.tensor([f.segment_ids for f in eval_features], dtype=torch.long)
+    all_example_index = torch.arange(all_input_ids.size(0), dtype=torch.long)
+    all_ling_features = torch.tensor([f.ling_features for f in eval_features], dtype=torch.float)
+    eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_ling_features, all_example_index)
+    # Run prediction for full data
+    eval_sampler = SequentialSampler(eval_data)
+    eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.predict_batch_size)
+
+    model.eval()
+    all_results = []
+    logger.info("Start evaluating on the test set")
+    for input_ids, input_mask, segment_ids, ling_features, example_indices in tqdm(eval_dataloader, desc="Evaluating"):
+        if len(all_results) % 1000 == 0:
+            logger.info("Processing example: %d" % (len(all_results)))
+        input_ids = input_ids.to(device)
+        input_mask = input_mask.to(device)
+        segment_ids = segment_ids.to(device)
+        ling_features = ling_features.to(device)
+        with torch.no_grad():
+            batch_start_logits, batch_end_logits = model(input_ids, segment_ids, input_mask, ling_features)
+        for i, example_index in enumerate(example_indices):
+            start_logits = batch_start_logits[i].detach().cpu().tolist()
+            end_logits = batch_end_logits[i].detach().cpu().tolist()
+            eval_feature = eval_features[example_index.item()]
+            unique_id = int(eval_feature.unique_id)
+            all_results.append(RawResult(unique_id=unique_id,
+                                         start_logits=start_logits,
+                                         end_logits=end_logits))
+    model.train()
+
+    results = eval_results(eval_examples, eval_features, all_results, args.test_eval_file,
+        args.n_best_size, args.max_answer_length,
+        args.do_lower_case, args.verbose_logging,
+        args.version_2_with_negative, args.null_score_diff_threshold)
+
+    results_list = [('F1', results['F1']),
+                    ('EM', results['EM'])]
+    if use_squad_v2:
+        results_list.append(('AvNA', results['AvNA']))
+    results = OrderedDict(results_list)
+
+    return results, all_results
 
 
 if __name__ == "__main__":
