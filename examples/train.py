@@ -346,7 +346,7 @@ def main(args):
                           args.n_best_size, args.max_answer_length,
                           args.do_lower_case, output_prediction_file,
                           output_nbest_file, output_null_log_odds_file, args.verbose_logging,
-                          args.version_2_with_negative, args.null_score_diff_threshold)
+                          args.version_2_with_negative, args.null_score_diff_threshold, 'dev')
 
 
         logger.info('Test set at the best model')
@@ -356,11 +356,11 @@ def main(args):
         output_prediction_file = os.path.join(args.output_dir, "predictions_test.json")
         output_nbest_file = os.path.join(args.output_dir, "nbest_predictions_test.json")
         output_null_log_odds_file = os.path.join(args.output_dir, "null_odds_test.json")
-        write_predictions(eval_examples, eval_features, all_results,
+        write_predictions(test_examples, test_features, all_results,
                           args.n_best_size, args.max_answer_length,
                           args.do_lower_case, output_prediction_file,
                           output_nbest_file, output_null_log_odds_file, args.verbose_logging,
-                          args.version_2_with_negative, args.null_score_diff_threshold)
+                          args.version_2_with_negative, args.null_score_diff_threshold, 'test')
         """
         logger.info("***** Running predictions *****")
         logger.info("  Num orig examples = %d", len(eval_examples))
@@ -461,57 +461,6 @@ def evaluate(model, eval_examples, eval_features, device, args, logger,use_squad
 
     return results, all_results
 
-
-def test(model, eval_examples, eval_features, device, args, logger,use_squad_v2 ):
-    logger.info("***** Running predictions for test set *****")
-    logger.info("  Num orig examples = %d", len(eval_examples))
-    logger.info("  Num split examples = %d", len(eval_features))
-    logger.info("  Batch size = %d", args.predict_batch_size)
-
-    all_input_ids = torch.tensor([f.input_ids for f in eval_features], dtype=torch.long)
-    all_input_mask = torch.tensor([f.input_mask for f in eval_features], dtype=torch.long)
-    all_segment_ids = torch.tensor([f.segment_ids for f in eval_features], dtype=torch.long)
-    all_example_index = torch.arange(all_input_ids.size(0), dtype=torch.long)
-    all_ling_features = torch.tensor([f.ling_features for f in eval_features], dtype=torch.float)
-    eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_ling_features, all_example_index)
-    # Run prediction for full data
-    eval_sampler = SequentialSampler(eval_data)
-    eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.predict_batch_size)
-
-    model.eval()
-    all_results = []
-    logger.info("Start evaluating on the test set")
-    for input_ids, input_mask, segment_ids, ling_features, example_indices in tqdm(eval_dataloader, desc="Evaluating"):
-        if len(all_results) % 1000 == 0:
-            logger.info("Processing example: %d" % (len(all_results)))
-        input_ids = input_ids.to(device)
-        input_mask = input_mask.to(device)
-        segment_ids = segment_ids.to(device)
-        ling_features = ling_features.to(device)
-        with torch.no_grad():
-            batch_start_logits, batch_end_logits = model(input_ids, segment_ids, input_mask, ling_features)
-        for i, example_index in enumerate(example_indices):
-            start_logits = batch_start_logits[i].detach().cpu().tolist()
-            end_logits = batch_end_logits[i].detach().cpu().tolist()
-            eval_feature = eval_features[example_index.item()]
-            unique_id = int(eval_feature.unique_id)
-            all_results.append(RawResult(unique_id=unique_id,
-                                         start_logits=start_logits,
-                                         end_logits=end_logits))
-    model.train()
-
-    results = eval_results(eval_examples, eval_features, all_results, args.test_eval_file,
-        args.n_best_size, args.max_answer_length,
-        args.do_lower_case, args.verbose_logging,
-        args.version_2_with_negative, args.null_score_diff_threshold)
-
-    results_list = [('F1', results['F1']),
-                    ('EM', results['EM'])]
-    if use_squad_v2:
-        results_list.append(('AvNA', results['AvNA']))
-    results = OrderedDict(results_list)
-
-    return results, all_results
 
 
 if __name__ == "__main__":
