@@ -292,7 +292,7 @@ def main(args):
                                    split='dev',
                                    num_visuals=args.num_visuals)
                     """
-                 if results['EM'] > best_EM:
+                    if results['EM'] > best_EM:
                         best_EM = results['EM']
                         model_to_save = model.module if hasattr(model, 'module') else model  # Only save the model it-self
                         output_model_file = os.path.join(args.output_dir, "pytorch_model_best.bin")
