@@ -1167,13 +1167,14 @@ class BertForQuestionAnsweringLing(PreTrainedBertModel):
     start_logits, end_logits = model(input_ids, token_type_ids, input_mask)
     ```
     """
-    def __init__(self, config, ling_size):
-        super(BertForQuestionAnswering, self).__init__(config)
+    def __init__(self, config):
+        super(BertForQuestionAnsweringLing, self).__init__(config)
         self.bert = BertModel(config)
         # TODO check with Google if it's normal there is no dropout on the token classifier of SQuAD in the TF version
         # self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        self.qa_outputs = nn.Linear(config.hidden_size + ling_size, 2)
-        self.lingLayer = nn.Linear(4, ling_size)
+        self.ling_size = 32
+        self.qa_outputs = nn.Linear(config.hidden_size + self.ling_size, 2)
+        self.lingLayer = nn.Linear(4, self.ling_size)
         self.apply(self.init_bert_weights)
 
     def forward(self, input_ids, token_type_ids=None, attention_mask=None,ling_feature = None, start_positions=None, end_positions=None):
@@ -1185,7 +1186,7 @@ class BertForQuestionAnsweringLing(PreTrainedBertModel):
 
         # ling_out (batch_size, max_seq_length, ling_size)
 
-        sequence_ling = torch.cat(sequence_output, ling_out, dim = 2)
+        sequence_ling = torch.cat((sequence_output, ling_out), dim = 2)
         logits = self.qa_outputs(sequence_ling)
         start_logits, end_logits = logits.split(1, dim=-1)
         start_logits = start_logits.squeeze(-1)

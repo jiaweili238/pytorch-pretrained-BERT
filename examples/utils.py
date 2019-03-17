@@ -112,11 +112,8 @@ class InputFeatures(object):
         self.is_impossible = is_impossible
         self.ling_features = ling_features
 
-
-def read_squad_examples(input_file, is_training, version_2_with_negative, ling_features_file):
+def read_squad_examples(input_file, is_training, version_2_with_negative, total_dictionary):
     """Read a SQuAD json file into a list of SquadExample."""
-    
-    ling_features_dict = np.load(ling_features_file)[()]
     
     with open(input_file, "r", encoding='utf-8') as reader:
         input_data = json.load(reader)["data"]
@@ -195,7 +192,8 @@ def read_squad_examples(input_file, is_training, version_2_with_negative, ling_f
                     start_position=start_position,
                     end_position=end_position,
                     is_impossible=is_impossible,
-                    ling_features=ling_features_dict[qas_id])
+                    ling_features=total_dictionary[qas_id])
+                
                 examples.append(example)
     return examples
 
@@ -362,6 +360,80 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
             unique_id += 1
 
     return features
+
+def convert_string_features_to_array(total_features, dep_dict, pos_dict, ent_dict):
+    total_dict = {}
+    for item, value in tqdm(total_features.items()):
+        dep_list = value[0]
+        pos_list = value[1]
+        ent_list = value[2]
+        ling_features = np.zeros((len(value[0]), 4)).astype(int)
+        for num, dep in enumerate(dep_list):
+            ling_features[num, 0] = dep_dict[dep]
+        for num, pos in enumerate(pos_list):
+            ling_features[num, 1] = pos_dict[pos]
+        for num, ent in enumerate(ent_list):
+            ling_features[num, 2] = ent_dict[ent]
+        ling_features[:,3] = np.asarray(value[3]).astype(int)
+        total_dict[item] = padding_ling_features(ling_features, 384)
+    print("Successfully converting the array")
+    return total_dict
+
+def padding_ling_features(ling_features, max_seq_length):
+    row, col = ling_features.shape
+    assert col == 4
+    if row > max_seq_length:
+        return ling_features[:max_seq_length,:]
+    elif row <= max_seq_length:
+        return np.concatenate((ling_features, np.zeros((max_seq_length - row, 4))))
+
+def generate_dictionary(train_feature_file, eval_feature_file, test_feature_file):
+    print("Generating total features and dictionaries")
+    with open(train_feature_file) as f:
+        train_features = json.load(f)
+    with open(eval_feature_file) as f:
+        eval_features = json.load(f)
+    with open(test_feature_file) as f:
+        test_features = json.load(f)
+    total_features = {}
+    total_features.update(train_features)
+    total_features.update(eval_features)
+    total_features.update(test_features)
+    dep_set = set()
+    pos_set = set()
+    ent_set = set()
+    stop_set = set()
+    for item, value in total_features.items():
+        dep_set = dep_set.union(set(value[0]))
+        pos_set = pos_set.union(set(value[1]))
+        ent_set = ent_set.union(set(value[2]))
+        stop_set = stop_set.union(set(value[3]))
+
+    dep_list = list(dep_set)
+    pos_list = list(pos_set)
+    ent_list = list(ent_set)
+    stop_list = list(stop_set)
+
+    dep_dict = {}
+    dep_counter = 1
+    pos_dict = {}
+    pos_counter = 1
+    ent_dict = {}
+    ent_counter = 1
+
+    for dep in dep_list:
+        dep_dict[dep] = dep_counter
+        dep_counter += 1
+
+    for pos in pos_list:
+        pos_dict[pos] = pos_counter
+        pos_counter += 1
+
+    for ent in ent_list:
+        ent_dict[ent] = ent_counter
+        ent_counter += 1
+    print("Total features and dictionaries generated successfully")
+    return dep_dict, pos_dict, ent_dict, total_features
 
 
 def _improve_answer_span(doc_tokens, input_start, input_end, tokenizer,
@@ -976,7 +1048,7 @@ def get_logger(log_dir, name):
         def emit(self, record):
             try:
                 msg = self.format(record)
-                tqdm.tqdm.write(msg)
+                tqdm.write(msg)
                 self.flush()
             except (KeyboardInterrupt, SystemExit):
                 raise

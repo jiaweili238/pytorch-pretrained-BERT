@@ -58,7 +58,8 @@ class SquadExample(object):
                  orig_answer_text=None,
                  start_position=None,
                  end_position=None,
-                 is_impossible=None):
+                 is_impossible=None,
+                 ling_features=None):
         self.qas_id = qas_id
         self.question_text = question_text
         self.doc_tokens = doc_tokens
@@ -66,6 +67,7 @@ class SquadExample(object):
         self.start_position = start_position
         self.end_position = end_position
         self.is_impossible = is_impossible
+        self.ling_features = ling_features
 
     def __str__(self):
         return self.__repr__()

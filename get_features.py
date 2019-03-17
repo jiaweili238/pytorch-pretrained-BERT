@@ -38,7 +38,7 @@ def read_squad_examples(input_file, is_training, version_2_with_negative):
 
     examples = []
     # read all the data in the train file
-    for num, entry in enumerate(tqdm(input_data, desc="Iteration")):
+    for num, entry in enumerate(tqdm(input_data, desc="Data")):
         for paragraph in entry["paragraphs"]:
             paragraph_text = paragraph["context"]
 
@@ -103,21 +103,20 @@ def read_squad_examples(input_file, is_training, version_2_with_negative):
                         end_position = -1
                         orig_answer_text = ""
 
+                total_features = concatenate_features(question_features, paragraph_features)
+
                 # example is the original for a certain example
                 # containning, qas_id, question_text, 
                 example = SquadExample(
                     # Added by Yue
-                    paragraph_context=paragraph_text,
-                    paragraph_features=paragraph_features,
-                    question_features=question_features,
-
                     qas_id=qas_id,
                     question_text=question_text,
                     doc_tokens=doc_tokens,
                     orig_answer_text=orig_answer_text,
                     start_position=start_position,
                     end_position=end_position,
-                    is_impossible=is_impossible)
+                    is_impossible=is_impossible,
+                    ling_features=total_features)
                 examples.append(example)
     return examples
 
@@ -128,48 +127,74 @@ def remove_whitespace_entities(doc):
 def extract_feature_matrix(sent):
     # The text "sent" and correpsonding tokens'
     docs = feature(sent)
-    features = np.zeros((len(docs), 4))
+    dependence_list = []
+    pos_list = []
+    entity_list = []
+    stop_word_list = []
+    features = []
     # pos_dict, entity_dict, dep_dict = get_annotation_dict()
 
-    for num, doc in enumerate(docs):
-        entity = doc.ent_type
-        part_of_speech = doc.pos
-        dependence = doc.dep
-        if dependence:
-            features[num, 0] = dependence
-        if part_of_speech:
-            features[num, 1] = part_of_speech
-        if entity:
-            features[num, 2] = entity     
-        features[num, 3] = doc.is_stop
+    for doc in docs:
+        entity = doc.ent_type_
+        part_of_speech = doc.pos_
+        dependence = doc.dep_
+        dependence_list.append(dependence)
+        pos_list.append(part_of_speech)
+        entity_list.append(entity) 
+        stop_word_list.append(doc.is_stop)
+    features.append(dependence_list)
+    features.append(pos_list)
+    features.append(entity_list)
+    features.append(stop_word_list)
     return features
+
+def concatenate_features(question_features, paragraph_features):
+    total_features = []
+    for i in range(4):
+        total_features.append(question_features[i] + paragraph_features[i])
+    return total_features
+
 
 if __name__ == '__main__':
     train_file = '../data/train-v2.0.json'
     test_file = '../data/test-v2.0.json'
-    dev_file = '../data/dev-v2.0.json' 
+    eval_file = '../data/dev-v2.0.json' 
    
     spacy.prefer_gpu()
     feature = spacy.load('en_core_web_sm')
     feature.add_pipe(remove_whitespace_entities, after='ner')
-    print('Start Reading training data')
-
-    eval_examples = read_squad_examples(
-        input_file=test_file, is_training=False, version_2_with_negative=True)
-
-    linguistic_feature = {}
-
-    max_seq_length = 384
+    train_ling_features = {}
+    eval_ling_features = {}
+    test_ling_features = {}    
     
-    print("Start Concatenating data")
-    for eval_example in eval_examples:
-        additional_input = np.concatenate((eval_example.question_features, eval_example.paragraph_features), axis = 0)
-        rows, _ = additional_input.shape
-        if rows > max_seq_length:
-            additional_input = additional_input[:max_seq_length,:]
-        else:
-            additional_input = np.concatenate((additional_input, np.zeros((max_seq_length - rows, 4))))
-        linguistic_feature[eval_example.qas_id] = additional_input
+    # print('Start Reading training data')
+    #train_examples = read_squad_examples(
+    #    input_file=train_file, is_training=False, version_2_with_negative=True)
+    
+    #for train_example in train_examples:
+    #    train_ling_features[train_example.qas_id] = train_example.ling_features
+
+    #with open('train_ling_features.json', 'w') as outfile:  
+    #    json.dump(train_ling_features, outfile)
+    
+    print('Start Reading dev data')
         
-    print("Save to file")
-    np.save('test_ling_features.npy',linguistic_feature)
+    eval_examples = read_squad_examples(
+        input_file=eval_file, is_training=False, version_2_with_negative=True)
+    
+    for eval_example in eval_examples:
+        eval_ling_features[eval_example.qas_id] = eval_example.ling_features
+
+    with open('eval_ling_features.json', 'w') as outfile:
+        json.dump(eval_ling_features, outfile)
+
+    print('Start Reading test data')
+    
+    test_examples = read_squad_examples(
+        input_file=test_file, is_training=False, version_2_with_negative=True)
+    
+    for test_example in eval_examples:
+        test_ling_features[eval_example.qas_id] = test_example.ling_features
+    
+    with open('test_ling_features.json', 'w') as outfile:
+        json.dump(test_ling_features, outfile)

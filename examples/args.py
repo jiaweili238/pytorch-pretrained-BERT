@@ -98,7 +98,7 @@ def get_args():
                         help='Number of steps between successive evaluations.')
     parser.add_argument("--train_ling_features_file", default=None, type=str, help="train linguistic featureus file")
     parser.add_argument("--eval_ling_features_file", default=None, type=str, help="eval linguistic featureus file")
-
+    parser.add_argument("--test_ling_features_file", default=None, type=str, help="test linguistic featureus file")
     args = parser.parse_args()
 
     return args

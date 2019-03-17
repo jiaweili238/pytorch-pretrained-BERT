@@ -35,6 +35,7 @@ from utils import convert_examples_to_features
 from utils import write_predictions
 from utils import RawResult
 from utils import eval_results
+from utils import *
 from tensorboardX import SummaryWriter
 from args import get_args
 import numpy as np
@@ -43,7 +44,7 @@ from torch.utils.data import TensorDataset, DataLoader, RandomSampler, Sequentia
 from torch.utils.data.distributed import DistributedSampler
 
 from pytorch_pretrained_bert.tokenization import whitespace_tokenize, BasicTokenizer, BertTokenizer
-from pytorch_pretrained_bert.modeling import BertForQuestionAnswering
+from pytorch_pretrained_bert.modeling import BertForQuestionAnsweringLing
 from pytorch_pretrained_bert.optimization import BertAdam, warmup_linear
 from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE
 
@@ -56,8 +57,7 @@ logger = logging.getLogger(__name__)
 
 
 def main(args):
-
-
+    
     # set up logging and device
     args.save_dir = utils.get_save_dir(args.save_dir, args.name, training=True)
     logger = utils.get_logger(args.save_dir, args.name)
@@ -105,18 +105,25 @@ def main(args):
 
     tokenizer = BertTokenizer.from_pretrained(args.bert_model, do_lower_case=args.do_lower_case)
 
+    # Generating the dictionaries
+    dep_dict, pos_dict, ent_dict, total_features  = generate_dictionary(args.train_ling_features_file, args.eval_ling_features_file, args.test_ling_features_file)   
+#    from IPython import embed; embed()
+    # Generating total_dictionary
+    total_dict = convert_string_features_to_array(total_features, dep_dict, pos_dict, ent_dict)
+    
+#    from IPython import embed; embed() 
     train_examples = None
     num_train_optimization_steps = None
     if args.do_train:
         train_examples = read_squad_examples(
-            input_file=args.train_file, is_training=True, version_2_with_negative=args.version_2_with_negative, args.train_ling_features_file)
+            input_file=args.train_file, is_training=True, version_2_with_negative=args.version_2_with_negative, total_dictionary = total_dict)
         num_train_optimization_steps = int(
             len(train_examples) / args.train_batch_size / args.gradient_accumulation_steps) * args.num_train_epochs
         if args.local_rank != -1:
             num_train_optimization_steps = num_train_optimization_steps // torch.distributed.get_world_size()
 
     # Prepare model
-    model = BertForQuestionAnswering.from_pretrained(args.bert_model,
+    model = BertForQuestionAnsweringLing.from_pretrained(args.bert_model,
                 cache_dir=PYTORCH_PRETRAINED_BERT_CACHE / 'distributed_{}'.format(args.local_rank))
 
     if args.fp16:
@@ -172,6 +179,7 @@ def main(args):
     cached_train_features_file = args.train_file+'_{0}_{1}_{2}_{3}'.format(
         list(filter(None, args.bert_model.split('/'))).pop(), str(args.max_seq_length), str(args.doc_stride), str(args.max_query_length))
     train_features = None
+    print(cached_train_features_file)
     try:
         with open(cached_train_features_file, "rb") as reader:
             train_features = pickle.load(reader)
@@ -190,7 +198,7 @@ def main(args):
 
     # load eval features
     eval_examples = read_squad_examples(
-            input_file=args.predict_file, is_training=False, version_2_with_negative=args.version_2_with_negative, args.eval_ling_features_file)
+            input_file=args.predict_file, is_training=False, version_2_with_negative=args.version_2_with_negative, total_dictionary=total_dict)
     eval_features = convert_examples_to_features(
             examples=eval_examples,
             tokenizer=tokenizer,
@@ -209,8 +217,9 @@ def main(args):
         all_segment_ids = torch.tensor([f.segment_ids for f in train_features], dtype=torch.long)
         all_start_positions = torch.tensor([f.start_position for f in train_features], dtype=torch.long)
         all_end_positions = torch.tensor([f.end_position for f in train_features], dtype=torch.long)
-        all_ling_features = torch.tensor([f.ling_features for f in train_features], dtype=torch.long)
-        train_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_ling_features
+        # from IPython import embed; embed()
+        all_ling_features = torch.tensor([f.ling_features for f in train_features], dtype=torch.float)
+        train_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_ling_features,
                                    all_start_positions, all_end_positions)
         steps_till_eval = args.eval_steps
         if args.local_rank == -1:
@@ -220,11 +229,14 @@ def main(args):
         train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size)
 
         model.train()
+
+        best_EM = 0
         for _ in trange(int(args.num_train_epochs), desc="Epoch"):
             for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
                 if n_gpu == 1:
                     batch = tuple(t.to(device) for t in batch) # multi-gpu does scattering it-self
                 input_ids, input_mask, segment_ids, ling_features, start_positions, end_positions = batch
+                # from IPython import embed; embed()
                 loss = model(input_ids, segment_ids, input_mask, ling_features, start_positions, end_positions)
                 if n_gpu > 1:
                     loss = loss.mean() # mean() to average on multi-gpu.
@@ -280,7 +292,12 @@ def main(args):
                                    split='dev',
                                    num_visuals=args.num_visuals)
                     """
-
+                 if results['EM'] > best_EM:
+                        best_EM = results['EM']
+                        model_to_save = model.module if hasattr(model, 'module') else model  # Only save the model it-self
+                        output_model_file = os.path.join(args.output_dir, "pytorch_model_best.bin")
+                        torch.save(model_to_save.state_dict(), output_model_file)
+                        #model.to(device) 
 
     # Save a trained model
     model_to_save = model.module if hasattr(model, 'module') else model  # Only save the model it-self
@@ -289,9 +306,9 @@ def main(args):
         torch.save(model_to_save.state_dict(), output_model_file)
         # Load a trained model that you have fine-tuned
         model_state_dict = torch.load(output_model_file)
-        model = BertForQuestionAnswering.from_pretrained(args.bert_model, state_dict=model_state_dict)
+        model = BertForQuestionAnsweringLing.from_pretrained(args.bert_model, state_dict=model_state_dict)
     else:
-        model = BertForQuestionAnswering.from_pretrained(args.bert_model)
+        model = BertForQuestionAnsweringLing.from_pretrained(args.bert_model)
 
     model.to(device)
 
@@ -352,7 +369,8 @@ def evaluate(model, eval_examples, eval_features, device, args, logger,use_squad
     all_input_mask = torch.tensor([f.input_mask for f in eval_features], dtype=torch.long)
     all_segment_ids = torch.tensor([f.segment_ids for f in eval_features], dtype=torch.long)
     all_example_index = torch.arange(all_input_ids.size(0), dtype=torch.long)
-    eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_example_index)
+    all_ling_features = torch.tensor([f.ling_features for f in eval_features], dtype=torch.float)
+    eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_ling_features, all_example_index)
     # Run prediction for full data
     eval_sampler = SequentialSampler(eval_data)
     eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.predict_batch_size)
@@ -360,14 +378,15 @@ def evaluate(model, eval_examples, eval_features, device, args, logger,use_squad
     model.eval()
     all_results = []
     logger.info("Start evaluating")
-    for input_ids, input_mask, segment_ids, example_indices in tqdm(eval_dataloader, desc="Evaluating"):
+    for input_ids, input_mask, segment_ids, ling_features, example_indices in tqdm(eval_dataloader, desc="Evaluating"):
         if len(all_results) % 1000 == 0:
             logger.info("Processing example: %d" % (len(all_results)))
         input_ids = input_ids.to(device)
         input_mask = input_mask.to(device)
         segment_ids = segment_ids.to(device)
+        ling_features = ling_features.to(device)
         with torch.no_grad():
-            batch_start_logits, batch_end_logits = model(input_ids, segment_ids, input_mask)
+            batch_start_logits, batch_end_logits = model(input_ids, segment_ids, input_mask, ling_features)
         for i, example_index in enumerate(example_indices):
             start_logits = batch_start_logits[i].detach().cpu().tolist()
             end_logits = batch_end_logits[i].detach().cpu().tolist()
