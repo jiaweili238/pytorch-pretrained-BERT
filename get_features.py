@@ -167,34 +167,26 @@ if __name__ == '__main__':
     eval_ling_features = {}
     test_ling_features = {}    
     
-    # print('Start Reading training data')
-    #train_examples = read_squad_examples(
-    #    input_file=train_file, is_training=False, version_2_with_negative=True)
-    
-    #for train_example in train_examples:
-    #    train_ling_features[train_example.qas_id] = train_example.ling_features
-
-    #with open('train_ling_features.json', 'w') as outfile:  
-    #    json.dump(train_ling_features, outfile)
+    print('Start Reading training data')
+    train_examples = read_squad_examples(
+        input_file=train_file, is_training=False, version_2_with_negative=True)    
+    for train_example in train_examples:
+        train_ling_features[train_example.qas_id] = train_example.ling_features
+    with open('train_ling_features.json', 'w') as outfile:  
+        json.dump(train_ling_features, outfile)
     
     print('Start Reading dev data')
-        
     eval_examples = read_squad_examples(
         input_file=eval_file, is_training=False, version_2_with_negative=True)
-    
     for eval_example in eval_examples:
         eval_ling_features[eval_example.qas_id] = eval_example.ling_features
-
     with open('eval_ling_features.json', 'w') as outfile:
         json.dump(eval_ling_features, outfile)
 
-    print('Start Reading test data')
-    
+    print('Start Reading test data')    
     test_examples = read_squad_examples(
         input_file=test_file, is_training=False, version_2_with_negative=True)
-    
-    for test_example in eval_examples:
-        test_ling_features[eval_example.qas_id] = test_example.ling_features
-    
+    for test_example in test_examples:
+        test_ling_features[test_example.qas_id] = test_example.ling_features
     with open('test_ling_features.json', 'w') as outfile:
         json.dump(test_ling_features, outfile)
