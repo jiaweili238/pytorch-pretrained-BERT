@@ -1,4 +1,5 @@
 export SQUAD_DIR=/home/zhangyue
+export OUTPUT_DIR=/home/shared
 # /data/home/jiawei/project/pytorch-pretrained-BERT/examples/squad
 
 python train.py \
@@ -18,7 +19,7 @@ python train.py \
   --doc_stride 128 \
   --version_2_with_negative \
   --name bert \
-  --output_dir $SQUAD_DIR/results/ensemble \
+  --output_dir $OUTPUT_DIR/results/ensemble \
   --train_ling_features_file /home/zhangyue/ling_features/train_ling_features.json \
   --eval_ling_features_file /home/zhangyue/ling_features/eval_ling_features.json \
   --test_ling_features_file /home/zhangyue/ling_features/test_ling_features.json 

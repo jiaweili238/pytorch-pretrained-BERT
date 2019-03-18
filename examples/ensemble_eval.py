@@ -59,9 +59,9 @@ logger = logging.getLogger(__name__)
 def main(args):
     
     # set up logging and device
-    args.save_dir = utils.get_save_dir(args.save_dir, args.name, training=True)
-    logger = utils.get_logger(args.save_dir, args.name)
-    tbx = SummaryWriter(args.save_dir)
+    args.output = utils.get_save_dir(args.output, args.name, training=True)
+    logger = utils.get_logger(args.output, args.name)
+    tbx = SummaryWriter(args.output)
 
     if args.local_rank == -1 or args.no_cuda:
         device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
