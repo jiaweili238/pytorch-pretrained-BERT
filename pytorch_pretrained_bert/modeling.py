@@ -1268,7 +1268,7 @@ class BertForQuestionAnsweringLingRelu(PreTrainedBertModel):
     ```
     """
     def __init__(self, config):
-        super(BertForQuestionAnsweringLing, self).__init__(config)
+        super(BertForQuestionAnsweringLingRelu, self).__init__(config)
         self.bert = BertModel(config)
         # TODO check with Google if it's normal there is no dropout on the token classifier of SQuAD in the TF version
         # self.dropout = nn.Dropout(config.hidden_dropout_prob)
