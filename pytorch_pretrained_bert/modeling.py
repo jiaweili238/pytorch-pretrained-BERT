@@ -1174,18 +1174,26 @@ class BertForQuestionAnsweringLing(PreTrainedBertModel):
         # self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.ling_size = 32
         self.qa_outputs = nn.Linear(config.hidden_size + self.ling_size, 2)
-        self.lingLayer = nn.Linear(4, self.ling_size)
+        self.lingLayer1 = nn.Linear(4, self.ling_size)
+         
+        # Some additional architecture
+        self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(0.2)
+        self.lingLayer2 = nn.Linear(self.ling_size, self.ling_size)
+        # End of additional architecture
+
         self.apply(self.init_bert_weights)
 
     def forward(self, input_ids, token_type_ids=None, attention_mask=None,ling_feature = None, start_positions=None, end_positions=None):
         # sequence_output (batch_size, max_seq_lenghth, hidden_size)
         sequence_output, _ = self.bert(input_ids, token_type_ids, attention_mask, output_all_encoded_layers=False)
         
-        # ling_feature (batch_size, max_seq_length, 4)
-        ling_out = self.lingLayer(ling_feature)
-
-        # ling_out (batch_size, max_seq_length, ling_size)
-
+        # Using simple architecture
+        # ling_out = self.lingLayer1(ling_feature)
+        
+        # Using additional architecture
+        ling_out = self.lingLayer2(self.dropout(self.relu(self.lingLayer1(ling_feature))))
+        
         sequence_ling = torch.cat((sequence_output, ling_out), dim = 2)
         logits = self.qa_outputs(sequence_ling)
         start_logits, end_logits = logits.split(1, dim=-1)
