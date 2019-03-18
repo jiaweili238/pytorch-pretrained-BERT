@@ -11,6 +11,7 @@ import tqdm
 import numpy as np
 import ujson as json
 import csv
+from os.path import join
 
 import argparse
 import collections
@@ -518,7 +519,7 @@ RawResult = collections.namedtuple("RawResult",
 def write_predictions(all_examples, all_features, all_results, n_best_size,
                       max_answer_length, do_lower_case, output_prediction_file,
                       output_nbest_file, output_null_log_odds_file, verbose_logging,
-                      version_2_with_negative, null_score_diff_threshold, split):
+                      version_2_with_negative, null_score_diff_threshold, split, args):
     """Write final predictions to the json file and log-odds of null if needed."""
     logger.info("Writing predictions to: %s" % (output_prediction_file))
     logger.info("Writing nbest to: %s" % (output_nbest_file))
@@ -691,7 +692,7 @@ def write_predictions(all_examples, all_features, all_results, n_best_size,
 
     # Write submission file for Kaggle
     sub_path = join(args.output_dir, split + '_' + 'submission.csv')
-    log.info('Writing submission file to {}...'.format(sub_path))
+    # log.info('Writing submission file to {}...'.format(sub_path))
     with open(sub_path, 'w') as csv_fh:
         csv_writer = csv.writer(csv_fh, delimiter=',')
         csv_writer.writerow(['Id', 'Predicted'])
